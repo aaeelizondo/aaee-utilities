@@ -9,6 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Define constants
 define( 'MABBLE_404_OPTION_KEY', 'mabble_custom_404_page_id' );
 define( 'MABBLE_404_LOG_TABLE', 'mabble_404_logs' );
+// Use a unique slug for the standalone page under Settings
 define( 'MABBLE_404_SETTINGS_SLUG', 'mabble-404-settings' );
 
 // Check if the module is active
@@ -21,8 +22,6 @@ $is_module_active = ! empty( $modules['custom_404_page'] );
 
 /**
  * Creates the database table for 404 logging upon module activation.
- * This function should be hooked into the activation process, but for
- * simplicity, we'll run it on admin_init if the module is active.
  */
 function mabble_404_db_setup() {
     global $wpdb;
@@ -51,19 +50,17 @@ if ( $is_module_active && is_admin() ) {
 }
 
 // -----------------------------------------------------------
-// B. ADMIN MENU AND SETTINGS PAGE
+// B. ADMIN MENU AND SETTINGS PAGE (Standalone under Settings)
 // -----------------------------------------------------------
 
 if ( $is_module_active && is_admin() ) {
     /**
-     * Registers the dedicated 404 Settings submenu page.
-     * Placed under the main Mabble Utilities page.
+     * Registers the dedicated 404 Settings page under the main Settings menu.
      */
     function mabble_add_404_settings_page() {
-        add_submenu_page(
-            'mabble-utilities', // Parent slug of your main settings page
-            'Custom 404 Settings & Logs',
-            '404 Settings & Logs',
+        add_options_page(
+            'Mabble Custom 404 Settings & Logs', // Page Title
+            'Mabble 404 Logs',                   // Menu Title
             'manage_options',
             MABBLE_404_SETTINGS_SLUG, // mabble-404-settings
             'mabble_render_404_settings_page'
@@ -118,7 +115,7 @@ if ( $is_module_active && is_admin() ) {
             'sort_column'       => 'post_title',
         ) );
         
-        echo '<p class="description">**IMPORTANT:** Selecting a page here will result in a **302 Temporary Redirect** to this page when a 404 occurs. For a true 404 status, select "Do not Redirect 404s".</p>';
+        echo '<p class="description">**IMPORTANT:** Selecting a page here will result in a **302 Temporary Redirect** to this page when a 404 occurs. For a standard 404 status (no redirect), select "Do not Redirect 404s".</p>';
     }
     
     /**
@@ -127,11 +124,12 @@ if ( $is_module_active && is_admin() ) {
     function mabble_render_404_settings_page() {
         ?>
         <div class="wrap">
-            <h1>Custom 404 Settings & Logs</h1>
+            <h1>Mabble Custom 404 Settings & Logs</h1>
 
             <form method="post" action="options.php">
                 <?php
-                settings_fields( MABBLE_404_SETTINGS_SLUG );
+                // Use the correct settings group slug for the settings fields
+                settings_fields( MABBLE_404_SETTINGS_SLUG ); 
                 do_settings_sections( MABBLE_404_SETTINGS_SLUG );
                 submit_button( 'Save Redirection Settings' );
                 ?>
@@ -227,6 +225,9 @@ function mabble_render_404_log_table() {
 
     // --- Pagination Setup ---
     $per_page = 20;
+    // Base URL is the current admin page URL
+    $base_url = remove_query_arg( array('paged', 'orderby', 'order'), $_SERVER['REQUEST_URI'] ); 
+    
     $current_page = isset( $_GET['paged'] ) ? absint( $_GET['paged'] ) : 1;
     $offset = ( $current_page - 1 ) * $per_page;
     $total_items = $wpdb->get_var( "SELECT COUNT(id) FROM $table_name" );
@@ -253,19 +254,31 @@ function mabble_render_404_log_table() {
         <thead>
             <tr>
                 <th width="70%">
-                    <a class="sortable" href="<?php echo esc_url( add_query_arg( array( 'orderby' => 'requested_url', 'order' => ( $orderby === 'requested_url' && $order === 'ASC' ? 'DESC' : 'ASC' ) ) ) ); ?>">
+                    <?php 
+                        $url_order = ( $orderby === 'requested_url' && $order === 'ASC' ) ? 'DESC' : 'ASC';
+                        $url = add_query_arg( array( 'orderby' => 'requested_url', 'order' => $url_order, 'paged' => $current_page ), $base_url );
+                    ?>
+                    <a class="sortable" href="<?php echo esc_url( $url ); ?>">
                         Requested URL
                         <?php if ( $orderby === 'requested_url' ) echo ( $order === 'ASC' ? '▲' : '▼' ); ?>
                     </a>
                 </th>
                 <th width="15%">
-                    <a class="sortable" href="<?php echo esc_url( add_query_arg( array( 'orderby' => 'request_count', 'order' => ( $orderby === 'request_count' && $order === 'DESC' ? 'ASC' : 'DESC' ) ) ) ); ?>">
+                    <?php 
+                        $count_order = ( $orderby === 'request_count' && $order === 'DESC' ) ? 'ASC' : 'DESC';
+                        $url = add_query_arg( array( 'orderby' => 'request_count', 'order' => $count_order, 'paged' => $current_page ), $base_url );
+                    ?>
+                    <a class="sortable" href="<?php echo esc_url( $url ); ?>">
                         404 Count
                         <?php if ( $orderby === 'request_count' ) echo ( $order === 'ASC' ? '▲' : '▼' ); ?>
                     </a>
                 </th>
                 <th width="15%">
-                    <a class="sortable" href="<?php echo esc_url( add_query_arg( array( 'orderby' => 'last_hit', 'order' => ( $orderby === 'last_hit' && $order === 'DESC' ? 'ASC' : 'DESC' ) ) ) ); ?>">
+                    <?php 
+                        $last_order = ( $orderby === 'last_hit' && $order === 'DESC' ) ? 'ASC' : 'DESC';
+                        $url = add_query_arg( array( 'orderby' => 'last_hit', 'order' => $last_order, 'paged' => $current_page ), $base_url );
+                    ?>
+                    <a class="sortable" href="<?php echo esc_url( $url ); ?>">
                         Last Seen
                         <?php if ( $orderby === 'last_hit' ) echo ( $order === 'ASC' ? '▲' : '▼' ); ?>
                     </a>
@@ -304,8 +317,8 @@ function mabble_render_404_log_table() {
         <div class="tablenav-pages">
             <?php
             $page_links = paginate_links( array(
-                'base' => add_query_arg( 'paged', '%#%' ),
-                'format' => '',
+                'base' => add_query_arg( 'paged', '%#%', $base_url ),
+                'format' => '&paged=%#%',
                 'prev_text' => '&laquo;',
                 'next_text' => '&raquo;',
                 'total' => $total_pages,
