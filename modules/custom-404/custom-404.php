@@ -157,7 +157,7 @@ if ( $is_module_active && is_admin() ) {
         <?php
     }
 
-    /**
+   /**
      * Processes the action to convert a 404 URL to a permanent 301 redirect OR delete a 301 rule.
      */
     function mabble_process_301_action() {
@@ -166,6 +166,7 @@ if ( $is_module_active && is_admin() ) {
         }
 
         $action = isset( $_GET['mabble-404-action'] ) ? sanitize_text_field( $_GET['mabble-404-action'] ) : '';
+        // Base URL excludes the action and nonce parameters
         $redirect_url = remove_query_arg( array( 'mabble-404-action', 'log_id', 'url_key', '_wpnonce' ), $_SERVER['REQUEST_URI'] );
         $success_message = '';
         
@@ -217,7 +218,9 @@ if ( $is_module_active && is_admin() ) {
 
         // Redirect and show notice if a successful action was performed
         if ( $success_message ) {
+            // Encode the success message and append it to the redirect URL
             $redirect_url = add_query_arg( 'mabble-301-success', urlencode( $success_message ), $redirect_url );
+            // Perform redirect and exit
             wp_redirect( $redirect_url );
             exit;
         }
@@ -225,12 +228,12 @@ if ( $is_module_active && is_admin() ) {
         // Show success notice from previous redirect
         if ( isset( $_GET['mabble-301-success'] ) ) {
             add_action( 'admin_notices', function() {
+                // Ensure the message is safely decoded and sanitized before output
                 $msg = urldecode( sanitize_text_field( $_GET['mabble-301-success'] ) );
                 echo '<div class="notice notice-success is-dismissible"><p>' . wp_kses_post( $msg ) . '</p></div>';
             });
         }
     }
-}
 
 // -----------------------------------------------------------
 // C. CORE REDIRECTION AND LOGGING LOGIC
