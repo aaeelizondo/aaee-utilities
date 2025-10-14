@@ -93,6 +93,9 @@ if ( $is_module_active && is_admin() ) {
     }
     add_action( 'admin_init', 'mabble_register_404_settings' );
     
+    // 🔥 NEW: Hook action processor to run on admin_init before rendering
+    add_action( 'admin_init', 'mabble_process_301_action' );
+
     /**
      * Sanitizes the 301 redirect list (should only contain URLs).
      */
@@ -135,8 +138,7 @@ if ( $is_module_active && is_admin() ) {
      * Renders the main settings page HTML and includes the logs table.
      */
     function mabble_render_404_settings_page() {
-        // Process 301 actions (convert and delete)
-        mabble_process_301_action();
+        // 🔥 REMOVED: mabble_process_301_action() is now hooked to admin_init.
 
         ?>
         <div class="wrap">
@@ -159,14 +161,26 @@ if ( $is_module_active && is_admin() ) {
 
     /**
      * Processes the action to convert a 404 URL to a permanent 301 redirect OR delete a 301 rule.
+     * Must run early in the request lifecycle (via admin_init hook).
      */
     function mabble_process_301_action() {
+        // Only run if we are on the correct page.
+        if ( ! is_admin() || ! isset( $_GET['page'] ) || $_GET['page'] !== MABBLE_404_SETTINGS_SLUG ) {
+            return;
+        }
+
         if ( ! current_user_can( 'manage_options' ) ) {
             return;
         }
 
         $action = isset( $_GET['mabble-404-action'] ) ? sanitize_text_field( $_GET['mabble-404-action'] ) : '';
-        // Base URL excludes the action and nonce parameters
+        
+        // Return if no action is being processed
+        if ( empty( $action ) ) {
+            return;
+        }
+
+        // Base URL excludes the action and nonce parameters for the final redirect
         $redirect_url = remove_query_arg( array( 'mabble-404-action', 'log_id', 'url_key', '_wpnonce' ), $_SERVER['REQUEST_URI'] );
         $success_message = '';
         
@@ -220,9 +234,9 @@ if ( $is_module_active && is_admin() ) {
         if ( $success_message ) {
             // Encode the success message and append it to the redirect URL
             $redirect_url = add_query_arg( 'mabble-301-success', urlencode( $success_message ), $redirect_url );
-            // Perform redirect and exit, fixing the blank page issue
+            // Perform redirect and exit
             wp_redirect( $redirect_url );
-            exit;
+            exit; // 🔥 CRUCIAL: Stops script execution after successful redirect
         }
 
         // Show success notice from previous redirect
