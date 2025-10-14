@@ -1,5 +1,5 @@
 <?php
-// Module: Custom 404 Page (ID: custom_404)
+// Module: Custom 404 Page (ID: custom_404_page)
 
 // Exit if accessed directly.
 if ( ! defined( 'ABSPATH' ) ) {
@@ -9,9 +9,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Define option key for the 404 page ID
 define( 'MABBLE_404_OPTION_KEY', 'mabble_custom_404_page_id' );
 
-// Check if the 'custom_404' module is active
+// Check if the 'custom_404_page' module is active (matching your aaee-utilities.php check)
 $modules = get_option( 'aaee_modules' );
-$is_module_active = ! empty( $modules['custom_404_page'] ); // NOTE: Module ID is 'custom_404_page' based on your aaee-utilities.php include check
+$is_module_active = ! empty( $modules['custom_404_page'] ); 
 
 // -----------------------------------------------------------
 // A. REGISTER SETTINGS AND FIELDS (Only run if module is active)
@@ -25,16 +25,15 @@ if ( $is_module_active ) {
     function mabble_register_custom_404_settings() {
         
         // Register the setting
-        // Option Group: aaee_options_group (from your main plugin file)
         register_setting( 'aaee_options_group', MABBLE_404_OPTION_KEY, 'absint' );
 
         // Add a new section to the main settings page
-        // Page Slug: mabble-utilities (CORRECTED from aaee-utilities)
+        // Page Slug: mabble-utilities (CORRECTED slug)
         add_settings_section(
             'mabble_404_settings_section',
             'Custom 404 Page Setup',
             'mabble_404_settings_section_callback',
-            'mabble-utilities' // <--- CORRECTED SLUG
+            'mabble-utilities'
         );
 
         // Add the dropdown field
@@ -43,7 +42,7 @@ if ( $is_module_active ) {
             'mabble_404_page_id_field',
             'Select 404 Page',
             'mabble_render_404_page_dropdown',
-            'mabble-utilities', // <--- CORRECTED SLUG
+            'mabble-utilities',
             'mabble_404_settings_section'
         );
     }
@@ -53,7 +52,7 @@ if ( $is_module_active ) {
      * Renders the section header text.
      */
     function mabble_404_settings_section_callback() {
-        echo '<p>Choose any published page to serve as the content when a "404 Not Found" error occurs.</p>';
+        echo '<p>Choose any published page to serve as the content when a "404 Not Found" error occurs. **It is highly recommended to select a Published page.**</p>';
     }
 
     /**
@@ -63,14 +62,15 @@ if ( $is_module_active ) {
         $current_page_id = get_option( MABBLE_404_OPTION_KEY );
         
         // Use the built-in WordPress function to display a page dropdown
+        // Setting post_status to an empty array overrides defaults that may be excluding pages.
         wp_dropdown_pages( array(
             'selected'          => $current_page_id,
             'name'              => MABBLE_404_OPTION_KEY, // Option name
             'show_option_none'  => '— Do not override 404 page —',
             'option_none_value' => '0', // Store 0 if none is selected
             'echo'              => 1,
-            'post_status'       => 'publish', // Only show published pages
-            'hierarchical'      => 0,         // <-- ADD THIS: Ensures all published pages are listed
+            'post_status'       => array(''), // <--- CRITICAL CHANGE: Query all pages regardless of default status
+            'hierarchical'      => 0,         // Ensures all pages are listed, regardless of parent/child status
         ) );
         
         echo '<p class="description">The content of the selected page will be displayed, but the HTTP status code will correctly remain 404.</p>';
