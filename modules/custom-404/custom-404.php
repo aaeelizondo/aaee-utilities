@@ -157,7 +157,7 @@ if ( $is_module_active && is_admin() ) {
         <?php
     }
 
-   /**
+    /**
      * Processes the action to convert a 404 URL to a permanent 301 redirect OR delete a 301 rule.
      */
     function mabble_process_301_action() {
@@ -220,7 +220,7 @@ if ( $is_module_active && is_admin() ) {
         if ( $success_message ) {
             // Encode the success message and append it to the redirect URL
             $redirect_url = add_query_arg( 'mabble-301-success', urlencode( $success_message ), $redirect_url );
-            // Perform redirect and exit
+            // Perform redirect and exit, fixing the blank page issue
             wp_redirect( $redirect_url );
             exit;
         }
@@ -234,6 +234,7 @@ if ( $is_module_active && is_admin() ) {
             });
         }
     }
+}
 
 // -----------------------------------------------------------
 // C. CORE REDIRECTION AND LOGGING LOGIC
