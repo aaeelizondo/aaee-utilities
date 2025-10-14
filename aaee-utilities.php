@@ -89,10 +89,10 @@ function aaee_include_modules() {
 	if ( isset( $options['code_injection'] ) ) {
 		require_once AAEE_PLUGIN_DIR . 'modules/code-injection/code-injection.php';
 	}
-	// Module 4: Custom 404 Page Selection
-	if ( isset( $options['custom_404_page'] ) ) {
-		require_once AAEE_PLUGIN_DIR . 'modules/custom-404/custom-404.php';
-	}
+	  // Module 4: Custom 404 Page Selection
+    if ( isset( $options['custom_404_page'] ) ) {
+        require_once AAEE_PLUGIN_DIR . 'modules/custom-404/custom-404.php';
+    }
 	
 	// Add other module includes here
 }
