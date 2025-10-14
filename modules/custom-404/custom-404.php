@@ -11,7 +11,7 @@ define( 'MABBLE_404_OPTION_KEY', 'mabble_custom_404_page_id' );
 
 // Check if the 'custom_404' module is active
 $modules = get_option( 'aaee_modules' );
-$is_module_active = ! empty( $modules['custom_404'] );
+$is_module_active = ! empty( $modules['custom_404_page'] ); // NOTE: Module ID is 'custom_404_page' based on your aaee-utilities.php include check
 
 // -----------------------------------------------------------
 // A. REGISTER SETTINGS AND FIELDS (Only run if module is active)
@@ -29,21 +29,21 @@ if ( $is_module_active ) {
         register_setting( 'aaee_options_group', MABBLE_404_OPTION_KEY, 'absint' );
 
         // Add a new section to the main settings page
-        // Page Slug: aaee-utilities (from your main plugin file)
+        // Page Slug: mabble-utilities (CORRECTED from aaee-utilities)
         add_settings_section(
             'mabble_404_settings_section',
             'Custom 404 Page Setup',
             'mabble_404_settings_section_callback',
-            'aaee-utilities' 
+            'mabble-utilities' // <--- CORRECTED SLUG
         );
 
         // Add the dropdown field
-        // Page Slug: aaee-utilities (must match the section slug)
+        // Page Slug: mabble-utilities (must match the section slug)
         add_settings_field(
             'mabble_404_page_id_field',
             'Select 404 Page',
             'mabble_render_404_page_dropdown',
-            'aaee-utilities', 
+            'mabble-utilities', // <--- CORRECTED SLUG
             'mabble_404_settings_section'
         );
     }
@@ -82,8 +82,6 @@ if ( $is_module_active ) {
 
     /**
      * Loads the content of the selected page when a 404 error is detected.
-     * We use the 'template_redirect' hook, which is early enough to change the query
-     * but late enough that WordPress knows it's a 404.
      */
     function mabble_custom_404_template_redirect() {
         global $wp_query;
