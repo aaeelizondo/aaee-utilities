@@ -8,7 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // Define constants
 define( 'MABBLE_404_OPTION_KEY', 'mabble_custom_404_page_id' );
-define( 'MABBLE_301_URLS_KEY', 'mabble_301_redirect_urls' ); // New key for 301 list
+define( 'MABBLE_301_URLS_KEY', 'mabble_301_redirect_urls' ); // Key for 301 list
 define( 'MABBLE_404_LOG_TABLE', 'mabble_404_logs' );
 define( 'MABBLE_404_SETTINGS_SLUG', 'mabble-404-settings' );
 
@@ -59,17 +59,17 @@ if ( $is_module_active && is_admin() ) {
      */
     function mabble_add_404_settings_page() {
         add_options_page(
-            'Mabble Custom 404 Settings & Logs', 
-            'Mabble 404 Logs',                   
+            'Mabble Custom 404 Settings & Logs', // Page Title
+            'Mabble 404 Logs',                   // Menu Title
             'manage_options',
-            MABBLE_404_SETTINGS_SLUG, 
+            MABBLE_404_SETTINGS_SLUG, // mabble-404-settings
             'mabble_render_404_settings_page'
         );
     }
     add_action( 'admin_menu', 'mabble_add_404_settings_page' );
 
     /**
-     * Registers the general settings field.
+     * Registers the settings field.
      */
     function mabble_register_404_settings() {
         register_setting( MABBLE_404_SETTINGS_SLUG, MABBLE_404_OPTION_KEY, 'absint' );
@@ -135,7 +135,7 @@ if ( $is_module_active && is_admin() ) {
      * Renders the main settings page HTML and includes the logs table.
      */
     function mabble_render_404_settings_page() {
-        // Process 301 action
+        // Process 301 actions (convert and delete)
         mabble_process_301_action();
 
         ?>
@@ -158,14 +158,19 @@ if ( $is_module_active && is_admin() ) {
     }
 
     /**
-     * Processes the action to convert a 404 URL to a permanent 301 redirect.
+     * Processes the action to convert a 404 URL to a permanent 301 redirect OR delete a 301 rule.
      */
     function mabble_process_301_action() {
         if ( ! current_user_can( 'manage_options' ) ) {
             return;
         }
 
-        if ( isset( $_GET['mabble-404-action'] ) && $_GET['mabble-404-action'] === 'convert-301' ) {
+        $action = isset( $_GET['mabble-404-action'] ) ? sanitize_text_field( $_GET['mabble-404-action'] ) : '';
+        $redirect_url = remove_query_arg( array( 'mabble-404-action', 'log_id', 'url_key', '_wpnonce' ), $_SERVER['REQUEST_URI'] );
+        $success_message = '';
+        
+        // --- Process CONVERT to 301 ---
+        if ( $action === 'convert-301' ) {
             if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( $_GET['_wpnonce'], 'mabble-301-convert' ) ) {
                 wp_die( 'Security check failed.' );
             }
@@ -180,27 +185,48 @@ if ( $is_module_active && is_admin() ) {
             if ( $log ) {
                 $permanent_urls = get_option( MABBLE_301_URLS_KEY, array() );
                 
-                // Add the URL to the 301 list
                 if ( ! in_array( $log->requested_url, $permanent_urls ) ) {
                     $permanent_urls[] = $log->requested_url;
                     update_option( MABBLE_301_URLS_KEY, $permanent_urls );
                     
-                    // Optionally, delete the entry from the 404 log now that it's a permanent redirect rule
+                    // Delete the entry from the 404 log now that it's a permanent redirect rule
                     $wpdb->delete( $table_name, array( 'id' => $url_id ), array( '%d' ) );
+                    $success_message = 'The URL has been successfully set as a **301 Permanent Redirect** rule.';
                 }
-                
-                // Redirect back to the logs page with a success message
-                $redirect_url = remove_query_arg( array( 'mabble-404-action', 'log_id', '_wpnonce' ), $_SERVER['REQUEST_URI'] );
-                $redirect_url = add_query_arg( 'mabble-301-success', '1', $redirect_url );
-                wp_redirect( $redirect_url );
-                exit;
+            }
+        } 
+        // --- Process DELETE 301 Rule ---
+        else if ( $action === 'delete-301' ) {
+            if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( $_GET['_wpnonce'], 'mabble-301-delete' ) ) {
+                wp_die( 'Security check failed.' );
+            }
+
+            $url_key = absint( $_GET['url_key'] );
+
+            $permanent_urls = get_option( MABBLE_301_URLS_KEY, array() );
+
+            if ( isset( $permanent_urls[$url_key] ) ) {
+                $deleted_url = $permanent_urls[$url_key];
+                unset( $permanent_urls[$url_key] );
+                // Re-index the array to keep it clean
+                $permanent_urls = array_values( $permanent_urls ); 
+                update_option( MABBLE_301_URLS_KEY, $permanent_urls );
+                $success_message = "The 301 redirect rule for `{$deleted_url}` has been deleted.";
             }
         }
-        
-        // Show success notice
+
+        // Redirect and show notice if a successful action was performed
+        if ( $success_message ) {
+            $redirect_url = add_query_arg( 'mabble-301-success', urlencode( $success_message ), $redirect_url );
+            wp_redirect( $redirect_url );
+            exit;
+        }
+
+        // Show success notice from previous redirect
         if ( isset( $_GET['mabble-301-success'] ) ) {
             add_action( 'admin_notices', function() {
-                echo '<div class="notice notice-success is-dismissible"><p>The URL has been successfully set as a **301 Permanent Redirect** rule.</p></div>';
+                $msg = urldecode( sanitize_text_field( $_GET['mabble-301-success'] ) );
+                echo '<div class="notice notice-success is-dismissible"><p>' . wp_kses_post( $msg ) . '</p></div>';
             });
         }
     }
@@ -337,15 +363,41 @@ function mabble_render_404_log_table() {
     
     <h3>Permanent Redirects (301)</h3>
     <p>The following URLs are currently redirecting permanently (301) to the default page selected above:</p>
-    <?php if ( ! empty( $permanent_urls ) ) : ?>
-        <ul>
-            <?php foreach ( $permanent_urls as $url ) : ?>
-                <li><code><?php echo esc_html( $url ); ?></code></li>
-            <?php endforeach; ?>
-        </ul>
-    <?php else: ?>
-        <p>No permanent (301) redirect rules are currently active.</p>
-    <?php endif; ?>
+    
+    <table class="mabble-404-log-table widefat fixed">
+        <thead>
+            <tr>
+                <th width="80%">Source URL</th>
+                <th width="20%">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if ( ! empty( $permanent_urls ) ) : ?>
+                <?php foreach ( $permanent_urls as $key => $url ) : ?>
+                    <tr>
+                        <td><code><?php echo esc_html( $url ); ?></code></td>
+                        <td>
+                            <?php 
+                                $delete_url = add_query_arg( array(
+                                    'mabble-404-action' => 'delete-301',
+                                    'url_key' => $key,
+                                    '_wpnonce' => wp_create_nonce( 'mabble-301-delete' )
+                                ), $base_url );
+                            ?>
+                            <a href="<?php echo esc_url( $delete_url ); ?>" class="button button-secondary button-small" 
+                                onclick="return confirm('Are you sure you want to delete this permanent (301) redirect rule?')">
+                                Delete Rule
+                            </a>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <tr>
+                    <td colspan="2">No permanent (301) redirect rules are currently active.</td>
+                </tr>
+            <?php endif; ?>
+        </tbody>
+    </table>
     
     <hr>
     
