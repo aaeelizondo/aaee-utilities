@@ -70,6 +70,7 @@ if ( $is_module_active ) {
             'option_none_value' => '0', // Store 0 if none is selected
             'echo'              => 1,
             'post_status'       => 'publish', // Only show published pages
+            'hierarchical'      => 0,         // <-- ADD THIS: Ensures all published pages are listed
         ) );
         
         echo '<p class="description">The content of the selected page will be displayed, but the HTTP status code will correctly remain 404.</p>';
