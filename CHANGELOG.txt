@@ -2,6 +2,9 @@
 Mabble Utilities Changelog
 =====================================================
 
+Version 1.1.a - [Date of Release, e.g., 2025-10-14]
+* Connected to Github
+--------------------------------------------------
 Version 1.1.0 - [Date of Release, e.g., 2025-10-14]
 --------------------------------------------------
 * New Feature: Custom 404 Page module added. Allows administrators to select any published page to serve as the content for a 404 "Not Found" error.
