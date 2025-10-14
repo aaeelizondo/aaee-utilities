@@ -1,0 +1,18 @@
+# Dependency folders
+node_modules/
+vendor/
+npm-debug.log
+
+# Build/Development Artifacts
+/build/
+/assets/
+
+# WordPress-specific files that Git shouldn't track
+*.bak
+*.orig
+*.log
+*.zip
+
+# Ignore specific development/testing files
+.env
+.DS_Store

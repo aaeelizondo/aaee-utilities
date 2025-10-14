@@ -1,0 +1,16 @@
+{
+  "name": "aaee-utilities",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "wp-scripts build ./modules/visibility-toggle/src/index.js --output-path ./modules/visibility-toggle/build",
+    "start": "wp-scripts start ./modules/visibility-toggle/src/index.js --output-path ./modules/visibility-toggle/build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@wordpress/scripts": "^30.25.0"
+  }
+}

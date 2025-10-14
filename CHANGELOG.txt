@@ -1,0 +1,16 @@
+=====================================================
+Mabble Utilities Changelog
+=====================================================
+
+Version 1.1.0 - [Date of Release, e.g., 2025-10-14]
+--------------------------------------------------
+* New Feature: Custom 404 Page module added. Allows administrators to select any published page to serve as the content for a 404 "Not Found" error.
+* Enhancement: Code Injection module is now registered as a parallel item under Settings for better visibility and access.
+* Enhancement: "Inject Code Now" button added to the Code Injection module listing on the main settings page for quick access.
+* Rename: Plugin name and all associated admin page titles and slugs updated from 'AAEE' to 'Mabble'.
+
+Version 1.0.0 - [Initial Release Date]
+------------------------------------
+* New Feature: Core module management settings page created under Settings > Mabble Utilities.
+* New Feature: Gutenberg Block Visibility Toggle module added. Allows blocks to be hidden on the frontend.
+* New Feature: Custom Menu Item Attributes module added. Allows injecting raw HTML attributes (e.g., aria-label, data-*) into navigation links via the WordPress menu editor.
