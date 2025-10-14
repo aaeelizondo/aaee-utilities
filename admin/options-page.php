@@ -1,7 +1,7 @@
 <?php
 // Exit if accessed directly.
 if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+    exit;
 }
 
 // 1. Module Definitions (Titles and Descriptions)
@@ -18,7 +18,7 @@ $aaee_module_definitions = array(
         'title' => 'Code Injection',
         'description' => 'Allows injecting custom code (JavaScript, tracking pixels, etc.) into the <head>, after the opening <body>, and before the closing <body>.',
     ),
-     'custom_404_page' => array(
+    'custom_404_page' => array(
         'title' => 'Custom 404 Page',
         'description' => 'Allows setting any published page as the custom page displayed on a 404 "Not Found" error.',
     ),
@@ -62,13 +62,27 @@ function aaee_module_settings_section_callback() {
 
 /**
  * Renders the custom toggle switch field and description, plus a direct link 
- * for the Code Injection module if active.
+ * for the Code Injection module and the 404 module if active.
  */
 function aaee_render_toggle_field( $args ) {
     $module_key = $args['module'];
     $description = $args['description'];
     $options = get_option( 'aaee_modules' );
     $is_active = isset( $options[ $module_key ] ) ? 1 : 0;
+    
+    // Define the link data based on the module key
+    $link_data = array();
+    if ( $module_key === 'code_injection' ) {
+        $link_data['url'] = admin_url( 'options-general.php?page=mabble-code-injection' );
+        $link_data['text'] = 'Inject Code Now';
+        $link_data['class'] = 'button-primary';
+    } elseif ( $module_key === 'custom_404_page' ) {
+        // Use the slug defined in custom-404.php: 'mabble-404-settings'
+        $link_data['url'] = admin_url( 'options-general.php?page=mabble-404-settings' );
+        $link_data['text'] = 'Manage 404 Settings & Logs';
+        $link_data['class'] = 'button-secondary';
+    }
+
 
     // --- Toggle Switch HTML ---
     echo '<div style="display: flex; align-items: center; gap: 20px;">';
@@ -77,11 +91,9 @@ function aaee_render_toggle_field( $args ) {
     echo '<span class="aaee-toggle-slider"></span>';
     echo '</label>';
     
-    // --- Inject Code Now Button (New Feature) ---
-    if ( $module_key === 'code_injection' && $is_active ) {
-        // Updated URL slug
-        $injection_url = admin_url( 'options-general.php?page=mabble-code-injection' );
-        echo '<a href="' . esc_url($injection_url) . '" class="button button-primary" style="margin: 0;">Inject Code Now</a>';
+    // --- Module Admin Button ---
+    if ( $is_active && ! empty( $link_data ) ) {
+        echo '<a href="' . esc_url($link_data['url']) . '" class="button ' . esc_attr($link_data['class']) . '" style="margin: 0;">' . esc_html($link_data['text']) . '</a>';
     }
     
     echo '</div>'; // Close flex container
