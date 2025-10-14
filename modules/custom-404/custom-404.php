@@ -23,25 +23,27 @@ if ( $is_module_active ) {
      * Registers the settings field for the custom 404 page.
      */
     function mabble_register_custom_404_settings() {
+        
         // Register the setting
-        // Assuming your main settings group is 'aaee_options_group'
+        // Option Group: aaee_options_group (from your main plugin file)
         register_setting( 'aaee_options_group', MABBLE_404_OPTION_KEY, 'absint' );
 
         // Add a new section to the main settings page
-        // Assuming your main settings page slug is 'aaee-utilities'
+        // Page Slug: aaee-utilities (from your main plugin file)
         add_settings_section(
             'mabble_404_settings_section',
             'Custom 404 Page Setup',
             'mabble_404_settings_section_callback',
-            'aaee-utilities' // Page slug of your main settings page
+            'aaee-utilities' 
         );
 
         // Add the dropdown field
+        // Page Slug: aaee-utilities (must match the section slug)
         add_settings_field(
             'mabble_404_page_id_field',
             'Select 404 Page',
             'mabble_render_404_page_dropdown',
-            'aaee-utilities',
+            'aaee-utilities', 
             'mabble_404_settings_section'
         );
     }
