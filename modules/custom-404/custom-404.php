@@ -8,7 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // Define constants
 define( 'MABBLE_404_OPTION_KEY', 'mabble_custom_404_page_id' );
-define( 'MABBLE_301_URLS_KEY', 'mabble_301_redirect_urls' ); // Key for 301 list
+define( 'MABBLE_301_URLS_KEY', 'mabble_301_redirect_urls' ); // Key for 301 list (URL => Page ID)
 define( 'MABBLE_404_LOG_TABLE', 'mabble_404_logs' );
 define( 'MABBLE_404_SETTINGS_SLUG', 'mabble-404-settings' );
 
@@ -98,7 +98,6 @@ if ( $is_module_active && is_admin() ) {
 
     /**
      * Sanitizes the 301 redirect list (should contain URL => Page ID).
-     * MODIFIED: To handle URL (string) keys and Page ID (int) values.
      */
     function mabble_sanitize_301_urls( $input ) {
         $sanitized = array();
@@ -169,7 +168,6 @@ if ( $is_module_active && is_admin() ) {
 
     /**
      * Processes the action to convert a 404 URL to a permanent 301 redirect OR delete a 301 rule.
-     * MODIFIED: To accept and store the target page ID when converting to 301.
      */
     function mabble_process_301_action() {
         // Only run if we are on the correct page.
@@ -199,11 +197,11 @@ if ( $is_module_active && is_admin() ) {
             }
 
             $url_id = absint( $_GET['log_id'] );
-            // NEW: Get the target page ID
+            // Get the target page ID
             $target_page_id = absint( $_GET['target_page_id'] ); 
             
             if ( $url_id === 0 || $target_page_id === 0 ) {
-                // Return or set an error message if the page wasn't selected
+                // Return an error if the page wasn't selected
                 $redirect_url = add_query_arg( 'mabble-301-error', urlencode( 'Error: You must select a valid target page for the 301 redirect.' ), $redirect_url );
                 wp_redirect( $redirect_url );
                 exit;
@@ -214,7 +212,7 @@ if ( $is_module_active && is_admin() ) {
             $log = $wpdb->get_row( $wpdb->prepare( "SELECT requested_url FROM $table_name WHERE id = %d", $url_id ) );
 
             if ( $log ) {
-                // Redirects are now stored as an associative array: [source_url => target_id]
+                // Redirects are stored as an associative array: [source_url => target_id]
                 $permanent_urls = get_option( MABBLE_301_URLS_KEY, array() );
                 
                 // Check if this source URL is already mapped
@@ -237,7 +235,7 @@ if ( $is_module_active && is_admin() ) {
                 wp_die( 'Security check failed.' );
             }
 
-            // MODIFIED: We are now deleting by the URL string key, not a numeric index.
+            // We are deleting by the URL string key, not a numeric index.
             $url_key = sanitize_text_field( $_GET['url_key'] ); 
 
             $permanent_urls = get_option( MABBLE_301_URLS_KEY, array() );
@@ -245,7 +243,6 @@ if ( $is_module_active && is_admin() ) {
             if ( isset( $permanent_urls[$url_key] ) ) {
                 $deleted_url = $url_key; // The key is the URL itself
                 unset( $permanent_urls[$url_key] );
-                // No need to re-index, it's an associative array now
                 update_option( MABBLE_301_URLS_KEY, $permanent_urls );
                 $success_message = "The 301 redirect rule for `{$deleted_url}` has been deleted.";
             }
@@ -284,7 +281,6 @@ if ( $is_module_active && is_admin() ) {
 
 /**
  * Tracks the 404 error and performs a redirect if a page is selected.
- * MODIFIED: To check the 301 list for a specific page ID to redirect to.
  */
 function mabble_custom_404_redirection_and_log() {
     global $wpdb;
@@ -324,8 +320,8 @@ function mabble_custom_404_redirection_and_log() {
         // Status remains 302 (temporary) since this is the general 404 handler
     }
 
-    // 4. LOGGING: If no default page is set, or if 301 was not found, still log the 404
-    if ( ! $redirect_url && ! isset( $permanent_urls[ $requested_url ] ) ) {
+    // 4. LOGGING: If no redirect was initiated by a 301 rule, log the 404
+    if ( ! isset( $permanent_urls[ $requested_url ] ) ) {
          mabble_log_404_error( $requested_url );
     }
 
@@ -383,7 +379,6 @@ function mabble_log_404_error( $requested_url ) {
 
 /**
  * Renders the table displaying the 404 logs.
- * MODIFIED: To display the target page for 301s and include a dropdown for new 301s.
  */
 function mabble_render_404_log_table() {
     global $wpdb;
@@ -391,8 +386,8 @@ function mabble_render_404_log_table() {
 
     // --- Pagination Setup ---
     $per_page = 20;
-    // MODIFIED: Added 'target_page_id' to list of args to remove (just in case it was passed on an error/refresh)
-    $base_url = remove_query_arg( array('paged', 'orderby', 'order', 'mabble-301-success', 'mabble-301-error', 'target_page_id'), $_SERVER['REQUEST_URI'] ); 
+    // Removed all action/message/sort/page args for clean base URL
+    $base_url = remove_query_arg( array('paged', 'orderby', 'order', 'mabble-301-success', 'mabble-301-error', 'target_page_id', 'mabble-404-action', 'log_id', 'url_key', '_wpnonce'), $_SERVER['REQUEST_URI'] ); 
     
     $current_page = isset( $_GET['paged'] ) ? absint( $_GET['paged'] ) : 1;
     $offset = ( $current_page - 1 ) * $per_page;
@@ -417,8 +412,7 @@ function mabble_render_404_log_table() {
         .mabble-404-log-table th, .mabble-404-log-table td { padding: 8px 10px; border: 1px solid #ccc; text-align: left; vertical-align: top; }
         .mabble-404-log-table th { background-color: #f3f3f3; }
         .mabble-404-log-table a.sortable { text-decoration: none; display: block; }
-        .mabble-404-log-table .actions { white-space: nowrap; }
-        .mabble-redirect-select { min-width: 150px; } /* Added for dropdown width */
+        .mabble-redirect-select { min-width: 150px; } 
     </style>
     
     <h3>Permanent Redirects (301)</h3>
@@ -428,12 +422,13 @@ function mabble_render_404_log_table() {
         <thead>
             <tr>
                 <th width="60%">Source URL</th>
-                <th width="20%">Target Page</th> <th width="20%">Action</th>
+                <th width="20%">Target Page</th>
+                <th width="20%">Action</th>
             </tr>
         </thead>
         <tbody>
             <?php if ( ! empty( $permanent_urls ) ) : ?>
-                <?php foreach ( $permanent_urls as $url => $target_id ) : // MODIFIED loop variables ?>
+                <?php foreach ( $permanent_urls as $url => $target_id ) : ?>
                     <tr>
                         <td><code><?php echo esc_html( $url ); ?></code></td>
                         <td>
@@ -449,7 +444,7 @@ function mabble_render_404_log_table() {
                         </td>
                         <td>
                             <?php 
-                                // CHANGE: The key for deletion is now the URL string itself, encoded
+                                // The key for deletion is the URL string itself, encoded
                                 $delete_url = add_query_arg( array(
                                     'mabble-404-action' => 'delete-301',
                                     'url_key' => urlencode( $url ), // Encode the URL key for the GET parameter
@@ -508,7 +503,8 @@ function mabble_render_404_log_table() {
                         <?php if ( $orderby === 'last_hit' ) echo ( $order === 'ASC' ? '▲' : '▼' ); ?>
                     </a>
                 </th>
-                <th width="45%" colspan="2">Redirect Action</th> </tr>
+                <th width="45%" colspan="2">Redirect Action</th> 
+            </tr>
         </thead>
         <tbody>
             <?php if ( $logs ) : ?>
@@ -533,7 +529,7 @@ function mabble_render_404_log_table() {
                                 <?php 
                                     wp_dropdown_pages( array(
                                         'selected'          => 0,
-                                        'name'              => 'target_page_id', // This name is now used in $_GET
+                                        'name'              => 'target_page_id', 
                                         'id'                => 'target_page_' . absint( $log->id ),
                                         'show_option_none'  => '— Select Target Page —',
                                         'option_none_value' => '0',
@@ -554,7 +550,8 @@ function mabble_render_404_log_table() {
                 <?php endforeach; ?>
             <?php else : ?>
                 <tr>
-                    <td colspan="5">No 404 errors have been logged yet.</td> </tr>
+                    <td colspan="5">No 404 errors have been logged yet.</td> 
+                </tr>
             <?php endif; ?>
         </tbody>
         <tfoot>
@@ -562,7 +559,8 @@ function mabble_render_404_log_table() {
                 <th>Requested URL</th>
                 <th>404 Count</th>
                 <th>Last Seen</th>
-                <th colspan="2">Redirect Action</th> </tr>
+                <th colspan="2">Redirect Action</th> 
+            </tr>
         </tfoot>
     </table>
     
