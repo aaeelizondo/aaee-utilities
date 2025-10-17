@@ -22,6 +22,14 @@ $aaee_module_definitions = array(
         'title' => 'Custom 404 Page',
         'description' => 'Allows setting any published page as the custom page displayed on a 404 "Not Found" error.',
     ),
+    'custom_redirects' => array(
+        'title' => 'Custom Redirection Manager (301/302)',
+        'description' => 'Dedicated management for explicit 301 (Permanent) and 302 (Temporary) redirects.',
+    ),
+    'custom_login' => array(
+        'title' => 'Custom Login URL',
+        'description' => 'Enhance security by changing the default WordPress login URL (/wp-admin, /wp-login.php) to a custom slug.',
+    ),
 );
 
 /**
@@ -62,7 +70,7 @@ function aaee_module_settings_section_callback() {
 
 /**
  * Renders the custom toggle switch field and description, plus a direct link 
- * for the Code Injection module and the 404 module if active.
+ * for the Code Injection module, the 404 module, and the Redirection module if active.
  */
 function aaee_render_toggle_field( $args ) {
     $module_key = $args['module'];
@@ -81,6 +89,16 @@ function aaee_render_toggle_field( $args ) {
         $link_data['url'] = admin_url( 'options-general.php?page=mabble-404-settings' );
         $link_data['text'] = 'Manage 404 Settings & Logs';
         $link_data['class'] = 'button-secondary';
+    } elseif ( $module_key === 'custom_redirects' ) {
+        // Use the slug defined in custom-redirects.php: 'mabble-redirects-settings'
+        $link_data['url'] = admin_url( 'tools.php?page=mabble-redirects-settings' ); // NOTE: Uses tools.php
+        $link_data['text'] = 'Manage Redirection Rules';
+        $link_data['class'] = 'button-secondary';
+    } elseif ( $module_key === 'custom_login' ) {
+        // Use the slug defined in custom-login.php: 'mabble-custom-login-settings'
+        $link_data['url'] = admin_url( 'options-general.php?page=mabble-custom-login-settings' );
+        $link_data['text'] = 'Set Custom Login URL';
+        $link_data['class'] = 'button-primary';
     }
 
 
