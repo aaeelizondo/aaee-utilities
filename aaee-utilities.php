@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Mabble Utilities By Aaron Elizondo
  * Description: A collection of custom utility modules for various client needs.
- * Version: 1.4.3
+ * Version: 1.4.4
  * Author: Aaron Elizondo
  */
 
