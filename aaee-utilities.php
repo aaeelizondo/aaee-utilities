@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Mabble Utilities By Aaron Elizondo
  * Description: A collection of custom utility modules for various client needs.
- * Version: 1.4.1
+ * Version: 1.4
  * Author: Aaron Elizondo
  */
 
@@ -40,15 +40,57 @@ function aaee_add_code_injection_page() {
     // Check if the Code Injection module is explicitly enabled
     if ( isset( $options['code_injection'] ) ) {
         add_options_page(
-            'Mabble Code Injection',             // Updated Page Title
-            'Mabble Code Injection',             // Updated Menu Title
-            'manage_options',                    // Capability
-            'mabble-code-injection',             // Updated Menu Slug
+            'Mabble Code Injection',           // Updated Page Title
+            'Mabble Code Injection',           // Updated Menu Title
+            'manage_options',                  // Capability
+            'mabble-code-injection',           // Updated Menu Slug
             'aaee_code_injection_settings_page'  // Callback function (defined in the new module file)
         );
     }
 }
 add_action( 'admin_menu', 'aaee_add_code_injection_page' );
+
+/**
+ * Adds the Custom Redirection Manager page under the Tools menu 
+ * if the module is active.
+ */
+function aaee_add_redirects_manager_page() {
+    $options = get_option( 'aaee_modules' );
+
+    // Check if the Custom Redirections module is explicitly enabled
+    if ( isset( $options['custom_redirects'] ) ) {
+        // Use add_management_page for the Tools menu
+        add_management_page(
+            'Mabble Redirection Manager',         // Page Title
+            'Redirections (301/302)',             // Menu Title
+            'manage_options',                     // Capability
+            'mabble-redirects-settings',          // Menu Slug (Defined in the module file)
+            'mabble_render_redirects_settings_page' // Callback function (defined in the new module file)
+        );
+    }
+}
+add_action( 'admin_menu', 'aaee_add_redirects_manager_page' );
+
+/**
+ * Adds the Custom Login URL settings page under the Settings menu 
+ * if the module is active.
+ */
+function aaee_add_custom_login_page() {
+    $options = get_option( 'aaee_modules' );
+
+    // Check if the Custom Login URL module is explicitly enabled
+    if ( isset( $options['custom_login'] ) ) {
+        // Use add_options_page (under Settings)
+        add_options_page(
+            'Mabble Custom Login URL',         // Page Title
+            'Custom Login URL',                // Menu Title
+            'manage_options',                  // Capability
+            'mabble-custom-login-settings',    // Menu Slug (Defined in the module file)
+            'mabble_render_custom_login_page'  // Callback function (defined in the new module file)
+        );
+    }
+}
+add_action( 'admin_menu', 'aaee_add_custom_login_page' );
 
 
 /**
@@ -94,6 +136,15 @@ function aaee_include_modules() {
         require_once AAEE_PLUGIN_DIR . 'modules/custom-404/custom-404.php';
     }
     
+    // Module 5: Custom Redirection Manager 
+    if ( isset( $options['custom_redirects'] ) ) {
+        require_once AAEE_PLUGIN_DIR . 'modules/custom-redirects/custom-redirects.php';
+    }
+    
+    // Module 6: Custom Login URL
+    if ( isset( $options['custom_login'] ) ) {
+        require_once AAEE_PLUGIN_DIR . 'modules/custom-login/custom-login.php';
+    }
     // Add other module includes here
 }
 add_action( 'plugins_loaded', 'aaee_include_modules' );
