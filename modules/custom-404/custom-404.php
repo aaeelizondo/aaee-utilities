@@ -329,9 +329,13 @@ if ( $is_module_active && is_admin() ) {
             return;
         }
 
-        // Base URL excludes the action and nonce parameters for the final redirect
-        // We must remove all potential submission fields as well to ensure a clean redirect base.
-        $redirect_url = remove_query_arg( array( 'mabble-404-action', 'log_id', 'url_key', 'target_page_id', 'target_external_url', 'ignore_target_page_id', 'ignore_target_external_url', 'target_type', '_wpnonce' ), $_SERVER['REQUEST_URI'] );
+        // Base URL excludes only the action and nonce parameters for the final redirect.
+        // This ensures sorting, pagination (paged, per_page, orderby, order) parameters persist.
+        $redirect_url = remove_query_arg( 
+            array( 'mabble-404-action', 'log_id', 'url_key', 'target_page_id', 'target_external_url', 'ignore_target_page_id', 'ignore_target_external_url', 'target_type', '_wpnonce' ), 
+            $_SERVER['REQUEST_URI'] 
+        );
+        
         $success_message = '';
         global $wpdb;
         $table_name = $wpdb->prefix . MABBLE_404_LOG_TABLE;
@@ -560,10 +564,29 @@ function mabble_render_404_log_table() {
     $table_name = $wpdb->prefix . MABBLE_404_LOG_TABLE;
 
     // --- Pagination Setup ---
-    $per_page = 20;
-    // Removed all action/message/sort/page args for clean base URL
+    // Available entries per page options
+    $per_page_options = array( 10, 20, 50, 100 );
+    // Get current per_page setting, default to 20
+    $per_page = isset( $_GET['per_page'] ) ? absint( $_GET['per_page'] ) : 20;
+
+    // Ensure $per_page is a valid option (optional but good practice)
+    if ( ! in_array( $per_page, $per_page_options ) ) {
+        $per_page = 20;
+    }
+
+    // Removed all action/message/sort/page args for clean base URL. 'per_page' is deliberately kept for now.
     $base_url = remove_query_arg( array('paged', 'orderby', 'order', 'mabble-301-success', 'mabble-301-error', 'target_page_id', 'target_external_url', 'ignore_target_page_id', 'ignore_target_external_url', 'target_type', 'mabble-404-action', 'log_id', 'url_key', '_wpnonce'), $_SERVER['REQUEST_URI'] ); 
     
+    // Add current sorting and per_page settings back to the base for clean links
+    if ( isset( $_GET['orderby'] ) ) {
+        $base_url = add_query_arg( 'orderby', sanitize_text_field($_GET['orderby']), $base_url );
+    }
+    if ( isset( $_GET['order'] ) ) {
+        $base_url = add_query_arg( 'order', sanitize_text_field($_GET['order']), $base_url );
+    }
+    $base_url = add_query_arg( 'per_page', $per_page, $base_url );
+
+
     $current_page = isset( $_GET['paged'] ) ? absint( $_GET['paged'] ) : 1;
     $offset = ( $current_page - 1 ) * $per_page;
     $total_items = $wpdb->get_var( "SELECT COUNT(id) FROM $table_name" );
@@ -572,10 +595,27 @@ function mabble_render_404_log_table() {
     // --- Sorting Setup ---
     $orderby = isset( $_GET['orderby'] ) && in_array( $_GET['orderby'], array( 'requested_url', 'request_count', 'last_hit' ) ) ? $_GET['orderby'] : 'request_count';
     $order = isset( $_GET['order'] ) && in_array( strtoupper( $_GET['order'] ), array( 'ASC', 'DESC' ) ) ? $_GET['order'] : 'DESC';
+    
+    // Define the opposite order for sort links
+    $opposite_order = ($order === 'DESC') ? 'ASC' : 'DESC';
+
+    // Function to create a sort link
+    $get_sort_link = function( $column, $label ) use ( $orderby, $order, $opposite_order, $base_url ) {
+        $new_order = ($orderby === $column) ? $opposite_order : 'DESC';
+        $current_indicator = ($orderby === $column) ? ($order === 'DESC' ? ' <span class="dashicons dashicons-arrow-down-alt"></span>' : ' <span class="dashicons dashicons-arrow-up-alt"></span>') : '';
+        $sort_url = add_query_arg( array( 'orderby' => $column, 'order' => $new_order ), $base_url );
+        return '<a class="sortable" href="' . esc_url( $sort_url ) . '">' . esc_html( $label ) . $current_indicator . '</a>';
+    };
+
 
     // --- Fetch Data ---
+    // Safely insert $orderby and $order since they were already sanitized above,
+    // and use %d for the LIMIT/OFFSET integers only.
     $logs = $wpdb->get_results( 
-        "SELECT * FROM $table_name ORDER BY $orderby $order LIMIT $per_page OFFSET $offset" 
+        $wpdb->prepare( 
+            "SELECT * FROM $table_name ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d", 
+            $per_page, $offset 
+        )
     );
     
     // Fetch permanent redirect list for comparison
@@ -613,9 +653,18 @@ function mabble_render_404_log_table() {
     <style>
         .mabble-404-log-table { width: 100%; border-collapse: collapse; }
         .mabble-404-log-table th, .mabble-404-log-table td { padding: 8px 10px; border: 1px solid #ccc; text-align: left; vertical-align: top; }
-        .mabble-404-log-table th { background-color: #f3f3f3; }
+        .mabble-404-log-table th { 
+            background-color: #f3f3f3; 
+            font-weight: bold; /* Added: Bold table headers */
+        }
         .mabble-404-log-table a.sortable { text-decoration: none; display: block; }
-        /* Adjusted style for inline actions */
+        /* Wrapper for all elements in the actions cell to keep them inline */
+        .mabble-log-row-actions {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
         .mabble-log-action-bar { 
             display: flex; 
             align-items: center; 
@@ -623,6 +672,47 @@ function mabble_render_404_log_table() {
             flex-wrap: wrap; 
         } 
         .mabble-redirect-select { min-width: 150px; } 
+
+        /* --------------------------------- */
+        /* 404 LOG PAGINATION STYLES (UPDATED) */
+        /* --------------------------------- */
+        .mabble-404-pagination-wrapper { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-top: 10px;
+            margin-bottom: 20px;
+        }
+        .mabble-pagination-controls .button {
+            border: 1px solid #ccc;
+            padding: 5px 10px;
+            text-decoration: none;
+            color: #555;
+            background: #f9f9f9;
+            line-height: 1;
+            display: inline-block;
+            margin-left: 5px;
+            box-shadow: 0 1px 0 rgba(0,0,0,.08);
+            border-radius: 3px;
+        }
+        .mabble-pagination-controls .button:hover {
+            background: #fff;
+            border-color: #999;
+        }
+        .mabble-pagination-controls .disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+        /* Style for current page button */
+        .mabble-pagination-controls .current {
+            background: #e3e3e3;
+            border-color: #999;
+            font-weight: bold;
+        }
+        .mabble-pagination-controls .paging-input {
+            padding: 0 5px;
+            margin-left: 5px;
+        }
     </style>
     
     <h3>Permanent Redirects (301)</h3>
@@ -672,18 +762,15 @@ function mabble_render_404_log_table() {
                                     '_wpnonce' => wp_create_nonce( 'mabble-301-delete' )
                                 ), $base_url );
                             ?>
-                            <a href="<?php echo esc_url( $edit_url ); ?>" class="button button-primary button-small">Edit Rule</a>
-                            <a href="<?php echo esc_url( $delete_url ); ?>" class="button button-secondary button-small" 
-                                onclick="return confirm('Are you sure you want to delete this permanent (301) redirect rule?')">
-                                Delete Rule
-                            </a>
+                            <a href="<?php echo esc_url( $edit_url ); ?>" class="button button-primary">Edit</a>
+                            <a href="<?php echo esc_url( $delete_url ); ?>" class="button button-secondary" onclick="return confirm('Are you sure you want to permanently delete this 301 redirect rule?');">Delete</a>
                             </div>
                         </td>
                     </tr>
                 <?php endforeach; ?>
-            <?php else: ?>
+            <?php else : ?>
                 <tr>
-                    <td colspan="3">No permanent (301) redirect rules are currently active.</td>
+                    <td colspan="3">No permanent 301 redirect rules have been set yet.</td>
                 </tr>
             <?php endif; ?>
         </tbody>
@@ -691,154 +778,224 @@ function mabble_render_404_log_table() {
     
     <hr>
     
-    <h3>Temporary Redirects (302) & Logged 404s</h3>
+    <h3>404 Error Log Tracker (Last <?php echo esc_html($per_page); ?> Entries)</h3>
+    <p>These URLs are currently resulting in 404 errors. Use the inline form to convert them to permanent 301 redirects.</p>
+    
+    <div class="mabble-404-pagination-wrapper">
+
+        <div class="mabble-items-per-page">
+            <label for="mabble_per_page">Show entries per screen:</label>
+            <select id="mabble_per_page" onchange="window.location.href = this.value;">
+                <?php 
+                foreach ( $per_page_options as $option ) {
+                    // Create a clean URL for the selected per_page option, resetting to page 1
+                    $option_url = add_query_arg( 'per_page', $option, remove_query_arg( 'paged', $base_url ) );
+                    $selected = selected( $per_page, $option, false );
+                    echo '<option value="' . esc_url( $option_url ) . '" ' . $selected . '>' . esc_html( $option ) . '</option>';
+                }
+                ?>
+            </select>
+        </div>
+        
+        <div class="mabble-pagination-controls">
+            <span class="displaying-num"><?php echo esc_html($total_items); ?> items</span>
+            <?php 
+            
+            // --- Pagination Links Generation ---
+            $range = 2; // Show 2 pages before and after current
+            $start_page = max( 1, $current_page - $range );
+            $end_page = min( $total_pages, $current_page + $range );
+
+            // Previous Page Button
+            $prev_page = max( 1, $current_page - 1 );
+            $prev_url = add_query_arg( 'paged', $prev_page, $base_url );
+            $prev_class = ($current_page <= 1) ? 'disabled' : '';
+            echo '<a href="' . esc_url( $prev_url ) . '" class="button ' . esc_attr($prev_class) . '">&laquo;</a>';
+
+            // Show first page link
+            if ( $start_page > 1 ) {
+                $first_url = add_query_arg( 'paged', 1, $base_url );
+                echo '<a href="' . esc_url( $first_url ) . '" class="button">1</a>';
+                if ( $start_page > 2 ) {
+                    echo '<span class="paging-input">...</span>';
+                }
+            }
+
+            // Show page numbers within the range
+            for ( $i = $start_page; $i <= $end_page; $i++ ) {
+                $page_url = add_query_arg( 'paged', $i, $base_url );
+                $class = ( $i === $current_page ) ? 'current' : '';
+                echo '<a href="' . esc_url( $page_url ) . '" class="button ' . esc_attr($class) . '">' . esc_html( $i ) . '</a>';
+            }
+
+            // Show last page link
+            if ( $end_page < $total_pages ) {
+                if ( $end_page < $total_pages - 1 ) {
+                    echo '<span class="paging-input">...</span>';
+                }
+                $last_url = add_query_arg( 'paged', $total_pages, $base_url );
+                echo '<a href="' . esc_url( $last_url ) . '" class="button">' . esc_html( $total_pages ) . '</a>';
+            }
+            
+            // Next Page Button
+            $next_page = min( $total_pages, $current_page + 1 );
+            $next_url = add_query_arg( 'paged', $next_page, $base_url );
+            $next_class = ($current_page >= $total_pages) ? 'disabled' : '';
+            echo '<a href="' . esc_url( $next_url ) . '" class="button ' . esc_attr($next_class) . '">&raquo;</a>';
+            ?>
+        </div>
+    </div>
 
     <table class="mabble-404-log-table widefat fixed">
         <thead>
             <tr>
-                <th width="30%">
-                    <?php 
-                        $url_order = ( $orderby === 'requested_url' && $order === 'ASC' ) ? 'DESC' : 'ASC';
-                        $url = add_query_arg( array( 'orderby' => 'requested_url', 'order' => $url_order, 'paged' => $current_page ), $base_url );
-                    ?>
-                    <a class="sortable" href="<?php echo esc_url( $url ); ?>">
-                        Requested URL
-                        <?php if ( $orderby === 'requested_url' ) echo ( $order === 'ASC' ? '▲' : '▼' ); ?>
-                    </a>
-                </th>
-                <th width="10%">
-                    <?php 
-                        $count_order = ( $orderby === 'request_count' && $order === 'DESC' ) ? 'ASC' : 'DESC';
-                        $url = add_query_arg( array( 'orderby' => 'request_count', 'order' => $count_order, 'paged' => $current_page ), $base_url );
-                    ?>
-                    <a class="sortable" href="<?php echo esc_url( $url ); ?>">
-                        404 Count
-                        <?php if ( $orderby === 'request_count' ) echo ( $order === 'ASC' ? '▲' : '▼' ); ?>
-                    </a>
-                </th>
-                <th width="15%">
-                    <?php 
-                        $last_order = ( $orderby === 'last_hit' && $order === 'DESC' ) ? 'ASC' : 'DESC';
-                        $url = add_query_arg( array( 'orderby' => 'last_hit', 'order' => $last_order, 'paged' => $current_page ), $base_url );
-                    ?>
-                    <a class="sortable" href="<?php echo esc_url( $url ); ?>">
-                        Last Seen
-                        <?php if ( $orderby === 'last_hit' ) echo ( $order === 'ASC' ? '▲' : '▼' ); ?>
-                    </a>
-                </th>
-                <th width="45%">Redirect Action</th> 
+                <th width="40%"><?php echo $get_sort_link( 'requested_url', 'Requested URL' ); ?></th>
+                <th width="10%"><?php echo $get_sort_link( 'request_count', 'Hits' ); ?></th>
+                <th width="15%"><?php echo $get_sort_link( 'last_hit', 'Last Hit' ); ?></th>
+                <th width="35%">Convert to 301 Redirect or Delete</th>
             </tr>
         </thead>
         <tbody>
-            <?php if ( $logs ) : ?>
+            <?php if ( ! empty( $logs ) ) : ?>
                 <?php foreach ( $logs as $log ) : ?>
                     <tr>
                         <td>
-                            <a href="<?php echo esc_url( site_url( $log->requested_url ) ); ?>" target="_blank">
-                                <?php echo esc_html( $log->requested_url ); ?>
-                            </a>
+                            <code><?php echo esc_html( $log->requested_url ); ?></code>
+                            <br><small><a href="<?php echo esc_url( home_url( $log->requested_url ) ); ?>" target="_blank">Test Link &rarr;</a></small>
                         </td>
                         <td><?php echo absint( $log->request_count ); ?></td>
-                        <td><?php echo esc_html( date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), strtotime( $log->last_hit ) ) ); ?></td>
-                        
-                        <td class="actions">
-                            <div class="mabble-log-action-bar">
-                                <form method="get" action="<?php echo esc_url( $base_url ); ?>" class="mabble-log-action-bar" style="margin: 0; padding: 0;">
-                                    <input type="hidden" name="page" value="<?php echo MABBLE_404_SETTINGS_SLUG; ?>">
+                        <td><?php echo esc_html( get_date_from_gmt( $log->last_hit, 'Y/m/d H:i' ) ); ?></td>
+                        <td>
+                            <?php 
+                            // Prepare base URLs for actions
+                            $convert_url = add_query_arg( 
+                                array(
+                                    'mabble-404-action' => 'convert-301',
+                                    'log_id' => absint( $log->id ),
+                                    '_wpnonce' => wp_create_nonce( 'mabble-301-convert' )
+                                ), 
+                                $base_url 
+                            );
+                            
+                            $delete_log_url = add_query_arg( 
+                                array(
+                                    'mabble-404-action' => 'delete-404-log',
+                                    'log_id' => absint( $log->id ),
+                                    '_wpnonce' => wp_create_nonce( 'mabble-404-log-delete' )
+                                ), 
+                                $base_url 
+                            );
+
+                            ?>
+                            <div class="mabble-log-row-actions">
+                                <form action="<?php echo esc_url( $convert_url ); ?>" method="get" class="mabble-log-action-bar">
+                                    <input type="hidden" name="page" value="<?php echo esc_attr( MABBLE_404_SETTINGS_SLUG ); ?>">
                                     <input type="hidden" name="mabble-404-action" value="convert-301">
                                     <input type="hidden" name="log_id" value="<?php echo absint( $log->id ); ?>">
                                     <input type="hidden" name="_wpnonce" value="<?php echo wp_create_nonce( 'mabble-301-convert' ); ?>">
 
-                                    <label for="target_type_<?php echo absint( $log->id ); ?>">Redirect to:</label>
-                                    <select name="target_type" id="target_type_<?php echo absint( $log->id ); ?>" onchange="mabbleSwitchTarget(<?php echo absint( $log->id ); ?>)" class="mabble-redirect-select">
-                                        <option value="internal">Internal Page</option>
-                                        <option value="external">External URL</option>
+                                    <select id="target_type_<?php echo absint( $log->id ); ?>" name="target_type" onchange="mabbleSwitchTarget(<?php echo absint( $log->id ); ?>)" class="mabble-redirect-select">
+                                        <option value="internal">Redirect to Internal Page</option>
+                                        <option value="external">Redirect to External URL</option>
                                     </select>
                                     
                                     <div id="internal_target_wrapper_<?php echo absint( $log->id ); ?>" style="display: block;">
                                         <?php 
-                                            // This field will have name='target_page_id' initially (set by JS in mabbleSwitchTarget)
+                                            // This uses the 'name' attribute which will be overwritten by JS
                                             wp_dropdown_pages( array(
                                                 'selected' => 0,
-                                                'name' => 'target_page_id', // Name will be changed by JS on external select
+                                                'name' => 'target_page_id', 
                                                 'id' => 'target_page_id_' . absint( $log->id ),
-                                                'show_option_none' => '— Select Target Page —',
+                                                'show_option_none' => 'Select Page...',
                                                 'option_none_value' => '0',
                                                 'echo' => 1,
                                                 'post_status' => array('publish', 'private'),
-                                                'hierarchical' => 0,
-                                                'sort_column' => 'post_title',
                                                 'class' => 'mabble-redirect-select'
                                             ) );
                                         ?>
                                     </div>
-
                                     <div id="external_target_wrapper_<?php echo absint( $log->id ); ?>" style="display: none;">
-                                        <input type="url" name="ignore_target_external_url" id="target_external_url_<?php echo absint( $log->id ); ?>" placeholder="https://external-link.com" class="mabble-redirect-select regular-text">
+                                        <input type="url" name="ignore_target_external_url" id="target_external_url_<?php echo absint( $log->id ); ?>" value="" placeholder="https://external.com" class="regular-text" style="width: 180px;" />
                                     </div>
                                     
-                                    <button type="submit" class="button button-primary button-small"
-                                        onclick="
-                                            var type = document.getElementById('target_type_<?php echo absint( $log->id ); ?>').value;
-                                            var internal_target = document.getElementById('target_page_id_<?php echo absint( $log->id ); ?>').value;
-                                            var external_target = document.getElementById('target_external_url_<?php echo absint( $log->id ); ?>').value;
-                                            
-                                            // Check if a target is set based on the current type
-                                            var target_is_set = (type === 'internal' && internal_target != '0') || (type === 'external' && external_target.trim() != '');
-                                            
-                                            return target_is_set && confirm('WARNING: This will set a PERMANENT (301) redirect for this URL and remove it from the log. Continue?');
-                                        ">
-                                        Set 301 Permanent
-                                    </button>
-
+                                    <input type="submit" value="Convert to 301" class="button button-primary" onclick="return confirm('Are you sure you want to convert this 404 log entry to a permanent 301 redirect and delete the log?');">
                                 </form>
-                                
-                                <?php 
-                                    // DELETE 404 LOG BUTTON
-                                    $delete_log_url = add_query_arg( array(
-                                        'mabble-404-action' => 'delete-404-log',
-                                        'log_id' => absint( $log->id ), 
-                                        '_wpnonce' => wp_create_nonce( 'mabble-404-log-delete' )
-                                    ), $base_url );
-                                ?>
-                                <a href="<?php echo esc_url( $delete_log_url ); ?>" class="button button-secondary button-small" 
-                                    onclick="return confirm('Are you sure you want to delete this 404 log entry? It will be logged again if hit.')">
-                                    Ignore/Delete Log
-                                </a>
+                                <a href="<?php echo esc_url( $delete_log_url ); ?>" class="button button-secondary" onclick="return confirm('Are you sure you want to delete this 404 log entry (ignore)?');">Delete Log Entry</a>
                             </div>
                         </td>
                     </tr>
                 <?php endforeach; ?>
             <?php else : ?>
                 <tr>
-                    <td colspan="5">No 404 errors have been logged yet.</td> 
+                    <td colspan="4">No 404 errors have been logged yet.</td>
                 </tr>
             <?php endif; ?>
         </tbody>
-        <tfoot>
-            <tr>
-                <th>Requested URL</th>
-                <th>404 Count</th>
-                <th>Last Seen</th>
-                <th>Redirect Action</th> 
-            </tr>
-        </tfoot>
     </table>
-    
-    <div class="tablenav bottom">
-        <div class="tablenav-pages">
-            <?php
-            $page_links = paginate_links( array(
-                'base' => add_query_arg( 'paged', '%#%', $base_url ),
-                'format' => '&paged=%#%',
-                'prev_text' => '&laquo;',
-                'next_text' => '&raquo;',
-                'total' => $total_pages,
-                'current' => $current_page,
-            ) );
-            echo $page_links;
+
+    <div class="mabble-404-pagination-wrapper">
+
+        <div class="mabble-items-per-page">
+            <label for="mabble_per_page_bottom">Show entries per screen:</label>
+            <select id="mabble_per_page_bottom" onchange="window.location.href = this.value;">
+                <?php 
+                foreach ( $per_page_options as $option ) {
+                    $option_url = add_query_arg( 'per_page', $option, remove_query_arg( 'paged', $base_url ) );
+                    $selected = selected( $per_page, $option, false );
+                    echo '<option value="' . esc_url( $option_url ) . '" ' . $selected . '>' . esc_html( $option ) . '</option>';
+                }
+                ?>
+            </select>
+        </div>
+        
+        <div class="mabble-pagination-controls">
+            <span class="displaying-num"><?php echo esc_html($total_items); ?> items</span>
+            <?php 
+            
+            // --- Pagination Links Generation ---
+            $range = 2; // Show 2 pages before and after current
+            $start_page = max( 1, $current_page - $range );
+            $end_page = min( $total_pages, $current_page + $range );
+
+            // Previous Page Button
+            $prev_page = max( 1, $current_page - 1 );
+            $prev_url = add_query_arg( 'paged', $prev_page, $base_url );
+            $prev_class = ($current_page <= 1) ? 'disabled' : '';
+            echo '<a href="' . esc_url( $prev_url ) . '" class="button ' . esc_attr($prev_class) . '">&laquo;</a>';
+
+            // Show first page link
+            if ( $start_page > 1 ) {
+                $first_url = add_query_arg( 'paged', 1, $base_url );
+                echo '<a href="' . esc_url( $first_url ) . '" class="button">1</a>';
+                if ( $start_page > 2 ) {
+                    echo '<span class="paging-input">...</span>';
+                }
+            }
+
+            // Show page numbers within the range
+            for ( $i = $start_page; $i <= $end_page; $i++ ) {
+                $page_url = add_query_arg( 'paged', $i, $base_url );
+                $class = ( $i === $current_page ) ? 'current' : '';
+                echo '<a href="' . esc_url( $page_url ) . '" class="button ' . esc_attr($class) . '">' . esc_html( $i ) . '</a>';
+            }
+
+            // Show last page link
+            if ( $end_page < $total_pages ) {
+                if ( $end_page < $total_pages - 1 ) {
+                    echo '<span class="paging-input">...</span>';
+                }
+                $last_url = add_query_arg( 'paged', $total_pages, $base_url );
+                echo '<a href="' . esc_url( $last_url ) . '" class="button">' . esc_html( $total_pages ) . '</a>';
+            }
+            
+            // Next Page Button
+            $next_page = min( $total_pages, $current_page + 1 );
+            $next_url = add_query_arg( 'paged', $next_page, $base_url );
+            $next_class = ($current_page >= $total_pages) ? 'disabled' : '';
+            echo '<a href="' . esc_url( $next_url ) . '" class="button ' . esc_attr($next_class) . '">&raquo;</a>';
             ?>
         </div>
     </div>
+    
     <?php
 }

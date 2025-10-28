@@ -145,6 +145,10 @@ function aaee_include_modules() {
     if ( isset( $options['custom_login'] ) ) {
         require_once AAEE_PLUGIN_DIR . 'modules/custom-login/custom-login.php';
     }
+    // Module 7: Custom SVG Uploader
+    if ( isset( $options['custom_svg_uploader'] ) ) {
+        require_once AAEE_PLUGIN_DIR . 'modules/custom-svg-uploader/custom-svg-uploader.php';
+    }
     // Add other module includes here
 }
 add_action( 'plugins_loaded', 'aaee_include_modules' );

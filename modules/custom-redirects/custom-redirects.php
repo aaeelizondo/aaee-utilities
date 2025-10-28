@@ -31,6 +31,8 @@ if ( $is_module_active && is_admin() ) {
 		<div class="wrap">
 			<h1>Mabble Redirection Manager (301/302)</h1>
 			
+			<?php mabble_render_module_precedence_note(); // NEW: Precedence Note ?>
+			
 			<?php mabble_render_redirect_notices(); // Render success/error notices ?>
 
 			<?php mabble_render_redirect_form(); ?>
@@ -40,6 +42,28 @@ if ( $is_module_active && is_admin() ) {
 			
 		</div>
 		<?php
+	}
+	
+	/**
+	 * Renders a note about module precedence if the 404 module is also active.
+	 */
+	function mabble_render_module_precedence_note() {
+		$modules = get_option( 'aaee_modules' );
+		
+		// Check if the Custom 404 Page module is active
+		if ( ! empty( $modules['custom_404_page'] ) ) {
+			?>
+			<div class="notice notice-info" style="margin-top: 20px;">
+				<p>
+					<strong>Heads up! Redirection Precedence Note:</strong> The **Custom Redirection Manager** module and the **Custom 404 Page** module both manage 301 redirects.
+				</p>
+				<p style="margin-bottom: 0;">
+					To prevent conflicts, this module (Custom Redirection Manager) is set to run first (Priority 0). If a redirect is matched here, it is executed, and the 404 module's rules are never checked.
+					**This means rules set here will always override rules set in the 404 module.**
+				</p>
+			</div>
+			<?php
+		}
 	}
 }
 
