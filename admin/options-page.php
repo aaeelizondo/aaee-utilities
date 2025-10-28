@@ -30,6 +30,10 @@ $aaee_module_definitions = array(
         'title' => 'Custom Login URL',
         'description' => 'Enhance security by changing the default WordPress login URL (/wp-admin, /wp-login.php) to a custom slug.',
     ),
+    'custom_svg_uploader' => array(
+        'title' => 'Custom SVG Uploader',
+        'description' => 'Allows trusted users (Administrators) to upload SVG files to the Media Library and use them in blocks. **Note: Limited to Administrators for security.**',
+    ),
 );
 
 /**
