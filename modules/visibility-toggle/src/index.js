@@ -1,25 +1,30 @@
 import { createHigherOrderComponent } from '@wordpress/compose';
 import { InspectorControls } from '@wordpress/block-editor';
-import { PanelBody, ToggleControl } from '@wordpress/components';
+import { PanelBody, SelectControl } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import { addFilter } from '@wordpress/hooks';
 
 // --- 1. Extend Block Attributes ---
 
-const addLiveHideAttribute = ( settings ) => {
-    // Check if the block is a dynamic block type (e.g., core/html, core/shortcode)
-    // or if it's the reusable block placeholder, and skip if necessary.
+const addVisibilityAttributes = ( settings ) => {
+    // Skip the reusable block placeholder.
     if ( settings.name === 'core/block' ) {
         return settings;
     }
 
-    // Add a new attribute to all blocks to store the toggle state.
+    // Add new attributes to all blocks to store the visibility state.
+    // MUST match the keys registered/checked in visibility-toggle.php
     settings.attributes = {
         ...settings.attributes,
-        // MUST match the key checked in the PHP file (aaee_live_hide_block_render)
+        // Legacy on/off toggle. Still read so previously hidden blocks stay hidden.
         aaeeLiveHide: {
             type: 'boolean',
             default: false,
+        },
+        // '' (visible), 'mobile', 'desktop' or 'all'
+        aaeeHideOn: {
+            type: 'string',
+            default: '',
         },
     };
 
@@ -30,16 +35,33 @@ const addLiveHideAttribute = ( settings ) => {
 addFilter(
     'blocks.registerBlockType',
     'aaee-utilities/add-live-hide-attribute',
-    addLiveHideAttribute
+    addVisibilityAttributes
 );
 
 
 // --- 2. Inject the Control UI ---
 
+const HIDE_OPTIONS = [
+    { label: __( 'Visible on all devices', 'aaee-utilities' ), value: '' },
+    { label: __( 'Hide on Mobile', 'aaee-utilities' ), value: 'mobile' },
+    { label: __( 'Hide on Desktop', 'aaee-utilities' ), value: 'desktop' },
+    { label: __( 'Hide on All Devices', 'aaee-utilities' ), value: 'all' },
+];
+
+const HELP_TEXT = {
+    '': __( 'This block is VISIBLE on the front-end.', 'aaee-utilities' ),
+    mobile: __( 'This block will be HIDDEN on mobile screens.', 'aaee-utilities' ),
+    desktop: __( 'This block will be HIDDEN on desktop screens.', 'aaee-utilities' ),
+    all: __( 'This block will be HIDDEN on the front-end for everyone.', 'aaee-utilities' ),
+};
+
 const withLiveHideControl = createHigherOrderComponent( ( BlockEdit ) => {
     return ( props ) => {
         const { attributes, setAttributes, isSelected } = props;
-        const { aaeeLiveHide } = attributes;
+        const { aaeeLiveHide, aaeeHideOn } = attributes;
+
+        // Blocks saved with the old toggle are treated as "Hide on All Devices".
+        const hideOn = aaeeHideOn || ( aaeeLiveHide ? 'all' : '' );
 
         return (
             <>
@@ -50,11 +72,15 @@ const withLiveHideControl = createHigherOrderComponent( ( BlockEdit ) => {
                 { isSelected && (
                     <InspectorControls>
                         <PanelBody title={ __( 'Block Visibility', 'aaee-utilities' ) } initialOpen={ false }>
-                            <ToggleControl
-                                label={ __( 'Hide on Live Site', 'aaee-utilities' ) }
-                                checked={ aaeeLiveHide }
-                                help={ aaeeLiveHide ? 'This block will be HIDDEN on the front-end.' : 'This block will be VISIBLE on the front-end.' }
-                                onChange={ ( newValue ) => setAttributes( { aaeeLiveHide: newValue } ) }
+                            <SelectControl
+                                __nextHasNoMarginBottom
+                                __next40pxDefaultSize
+                                label={ __( 'Visibility on Live Site', 'aaee-utilities' ) }
+                                value={ hideOn }
+                                options={ HIDE_OPTIONS }
+                                help={ HELP_TEXT[ hideOn ] }
+                                // Clearing the legacy toggle migrates the block to the new attribute.
+                                onChange={ ( newValue ) => setAttributes( { aaeeHideOn: newValue, aaeeLiveHide: undefined } ) }
                             />
                         </PanelBody>
                     </InspectorControls>

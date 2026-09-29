@@ -8,7 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 $aaee_module_definitions = array(
     'visibility_toggle' => array(
         'title' => 'Gutenberg Block Visibility Toggle',
-        'description' => 'Adds a sidebar control to all Gutenberg blocks, allowing you to hide them from the public front-end view.',
+        'description' => 'Adds a sidebar control to all Gutenberg blocks, allowing you to hide them from the public front-end view on mobile, desktop or all devices.',
     ),
     'custom_menu_attributes' => array(
         'title' => 'Custom Menu Item Attributes (Accessibility)',

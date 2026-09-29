@@ -69,25 +69,103 @@ add_action( 'enqueue_block_editor_assets', 'aaee_enqueue_visibility_assets' );
 
 
 /**
+ * Register the visibility attributes on the server for every block.
+ * Without this, dynamic blocks previewed in the editor (ServerSideRender)
+ * reject the unknown attributes with an "Invalid parameter(s): attributes" error.
+ */
+function aaee_register_visibility_block_attributes( $args ) {
+    if ( ! isset( $args['attributes'] ) || ! is_array( $args['attributes'] ) ) {
+        $args['attributes'] = array();
+    }
+
+    $args['attributes']['aaeeLiveHide'] = array(
+        'type'    => 'boolean',
+        'default' => false,
+    );
+    $args['attributes']['aaeeHideOn'] = array(
+        'type'    => 'string',
+        'default' => '',
+    );
+
+    return $args;
+}
+add_filter( 'register_block_type_args', 'aaee_register_visibility_block_attributes' );
+
+
+/**
+ * Work out where a block should be hidden: '', 'mobile', 'desktop' or 'all'.
+ */
+function aaee_get_block_hide_on( $attrs ) {
+    $hide_on = isset( $attrs['aaeeHideOn'] ) ? $attrs['aaeeHideOn'] : '';
+
+    if ( in_array( $hide_on, array( 'mobile', 'desktop', 'all' ), true ) ) {
+        return $hide_on;
+    }
+
+    // Legacy toggle: a PHP boolean or a string 'true'/'false' or 1/0 from the database/REST API.
+    $legacy = isset( $attrs['aaeeLiveHide'] ) ? $attrs['aaeeLiveHide'] : false;
+    if ( $legacy === true || $legacy === 'true' || $legacy === 1 || $legacy === '1' ) {
+        return 'all';
+    }
+
+    return '';
+}
+
+
+/**
+ * Print the responsive hide rules. Only enqueued on pages that use them.
+ */
+function aaee_enqueue_visibility_frontend_style() {
+    if ( wp_style_is( 'aaee-visibility-frontend', 'enqueued' ) ) {
+        return;
+    }
+
+    // Screens narrower than this are "mobile". Filterable per site.
+    $breakpoint = (int) apply_filters( 'aaee_visibility_mobile_breakpoint', 768 );
+
+    $css = sprintf(
+        '@media (max-width: %1$dpx){.aaee-hide-mobile{display:none !important;}}' .
+        '@media (min-width: %2$dpx){.aaee-hide-desktop{display:none !important;}}',
+        $breakpoint - 1,
+        $breakpoint
+    );
+
+    wp_register_style( 'aaee-visibility-frontend', false );
+    wp_add_inline_style( 'aaee-visibility-frontend', $css );
+    wp_enqueue_style( 'aaee-visibility-frontend' );
+}
+
+
+/**
  * Apply the visibility filter on the front-end.
- * This function determines if the block should be rendered based on the meta value (aaeeLiveHide).
+ * 'all' removes the block from the HTML; 'mobile'/'desktop' add a CSS class
+ * so the result is the same for every visitor (safe with page caching).
  */
 function aaee_render_block_visibility_filter( $block_content, $block ) {
-    // Only apply the filter to actual block rendering on the frontend (not the editor).
-    // Check for your specific attribute name: aaeeLiveHide
-    if ( is_admin() || ! isset( $block['attrs']['aaeeLiveHide'] ) ) {
+    // Only apply the filter to actual block rendering on the frontend (not the editor or its REST previews).
+    if ( is_admin() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) || empty( $block['attrs'] ) ) {
         return $block_content;
     }
 
-    // The value will be a PHP boolean or a string 'true'/'false' or 1/0 from the database/REST API.
-    $should_hide = $block['attrs']['aaeeLiveHide'];
+    $hide_on = aaee_get_block_hide_on( $block['attrs'] );
 
-    // Check if the value is explicitly set to true (boolean or string 'true'/'1')
-    if ( $should_hide === true || $should_hide === 'true' || $should_hide === 1 || $should_hide === '1' ) {
+    if ( $hide_on === '' ) {
+        return $block_content; // Show the block.
+    }
+
+    if ( $hide_on === 'all' ) {
         return ''; // Return an empty string (hide the block).
     }
 
-    // Otherwise, return the block content (show the block).
-    return $block_content;
+    // Add the class to the block's outer HTML element.
+    $processor = new WP_HTML_Tag_Processor( $block_content );
+    if ( ! $processor->next_tag() ) {
+        return $block_content; // No HTML wrapper to target.
+    }
+    $processor->add_class( 'aaee-hide-' . $hide_on );
+
+    aaee_enqueue_visibility_frontend_style();
+
+    return $processor->get_updated_html();
 }
 add_filter( 'render_block', 'aaee_render_block_visibility_filter', 10, 2 );
